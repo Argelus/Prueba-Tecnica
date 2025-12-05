@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Tickets</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .card-ticket { transition: transform 0.2s; }
+        .card-ticket:hover { transform: translateY(-5px); box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .status-badge { font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-primary mb-4">
+    <div class="container">
+        <span class="navbar-brand mb-0 h1">🎫 Sistema de Tickets / To-Do</span>
+    </div>
+</nav>
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white fw-bold">Nuevo Ticket</div>
+                <div class="card-body">
+                    <form id="ticketForm">
+                        <div class="mb-3">
+                            <label class="form-label">Título</label>
+                            <input type="text" class="form-control" id="titulo" required placeholder="Ej: Corregir bug...">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descripción</label>
+                            <textarea class="form-control" id="descripcion" rows="3" placeholder="Detalles de la tarea..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Crear Ticket</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <h5 class="mb-3 text-muted">Lista de Tareas</h5>
+            <div id="listaTickets" class="row g-3">
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    const API_URL = '/api/tickets';
+
+    // 1. Cargar tickets al iniciar
+    document.addEventListener('DOMContentLoaded', cargarTickets);
+
+    // Función para obtener (GET) y mostrar tickets
+    async function cargarTickets() {
+        try {
+            const response = await fetch(API_URL);
+            const data = await response.json();
+
+            const contenedor = document.getElementById('listaTickets');
+            contenedor.innerHTML = ''; // Limpiar lista
+
+            // Recuerda que ahora tu API devuelve { status: "ok", data: [...] }
+            if(data.status === 'ok' && Array.isArray(data.data)) {
+                data.data.forEach(ticket => {
+                    contenedor.innerHTML += crearTarjetaTicket(ticket);
+                });
+            }
+        } catch (error) {
+            console.error('Error cargando tickets:', error);
+        }
+    }
+
+    // Plantilla HTML para cada ticket
+    function crearTarjetaTicket(ticket) {
+        let colorBadge = ticket.estatus === 'TERMINADO' ? 'success' :
+                         (ticket.estatus === 'EN_PROCESO' ? 'warning' : 'secondary');
+
+        return `
+            <div class="col-12">
+                <div class="card card-ticket border-start border-4 border-${colorBadge}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <h5 class="card-title mb-1">${ticket.titulo}</h5>
+                            <span class="badge bg-${colorBadge} status-badge">${ticket.estatus}</span>
+                        </div>
+                        <p class="card-text text-muted small mb-2">${ticket.descripcion || 'Sin descripción'}</p>
+                        <div class="mt-3 d-flex gap-2">
+                            <button onclick="cambiarEstatus(${ticket.id}, 'PENDIENTE')" class="btn btn-outline-secondary btn-sm" ${ticket.estatus === 'PENDIENTE' ? 'disabled' : ''}>Pendiente</button>
+                            <button onclick="cambiarEstatus(${ticket.id}, 'EN_PROCESO')" class="btn btn-outline-warning btn-sm" ${ticket.estatus === 'EN_PROCESO' ? 'disabled' : ''}>En Proceso</button>
+                            <button onclick="cambiarEstatus(${ticket.id}, 'TERMINADO')" class="btn btn-outline-success btn-sm" ${ticket.estatus === 'TERMINADO' ? 'disabled' : ''}>Terminar</button>
+
+                            <button onclick="eliminarTicket(${ticket.id})" class="btn btn-danger btn-sm ms-auto">🗑</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // 2. Crear Ticket (POST)
+    document.getElementById('ticketForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const titulo = document.getElementById('titulo').value;
+        const descripcion = document.getElementById('descripcion').value;
+
+        const nuevoTicket = { titulo, descripcion };
+
+        try {
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(nuevoTicket)
+            });
+
+            if (response.ok) {
+                document.getElementById('ticketForm').reset();
+                cargarTickets(); // Recargar la lista
+            } else {
+                alert('Error al crear ticket');
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    });
+
+    // 3. Cambiar Estatus (PUT)
+    async function cambiarEstatus(id, nuevoEstatus) {
+        try {
+            await fetch(`${API_URL}/${id}/estatus?estatus=${nuevoEstatus}`, {
+                method: 'PUT'
+            });
+            cargarTickets(); // Recargar para ver el cambio de color
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    // 4. Eliminar Ticket (DELETE)
+    async function eliminarTicket(id) {
+        if(!confirm('¿Seguro que deseas eliminar este ticket?')) return;
+
+        try {
+            await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+            cargarTickets();
+        } catch (error) {
+            console.error(error);
+        }
+    }
+</script>
+
+</body>
+</html>
